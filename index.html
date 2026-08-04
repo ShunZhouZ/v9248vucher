@@ -1,0 +1,890 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy"
+      content="script-src 'self' 'unsafe-inline'; connect-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#1b1e23">
+<meta name="robots" content="noindex, nofollow">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icon-192.png">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>Voucher térmico</title>
+<style>
+:root{
+  --panel:#1b1e23;
+  --panel-2:#25292f;
+  --panel-3:#2f343c;
+  --paper:#ecedf0;
+  --ink:#15161a;
+  --stamp:#c1272d;
+  --ok:#3f9d6d;
+  --muted:#8d959f;
+  --line:rgba(255,255,255,.09);
+  --mono: ui-monospace, "Roboto Mono", "DejaVu Sans Mono", "Courier New", monospace;
+  --ui: system-ui, "Roboto", "Helvetica Neue", sans-serif;
+  --paper-mm: 58mm;
+  --paper-ch: 32;
+  --tick: 12.5px;
+}
+*{box-sizing:border-box; -webkit-tap-highlight-color:transparent}
+html,body{margin:0; height:100%}
+body{
+  background:var(--panel); color:#e7eaee; font-family:var(--ui);
+  overscroll-behavior:none;
+}
+button{font-family:inherit; color:inherit; border:0; background:none; cursor:pointer}
+input,select{font-family:inherit}
+
+#app{display:flex; flex-direction:column; height:100%; max-width:520px; margin:0 auto}
+
+/* ── header ─────────────────────────────── */
+header{
+  padding:14px 16px 10px; border-bottom:1px solid var(--line);
+  display:flex; align-items:baseline; gap:10px;
+}
+header h1{
+  margin:0; font-size:13px; font-weight:800; letter-spacing:.16em; text-transform:uppercase;
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+}
+header .folio{
+  margin-left:auto; font-family:var(--mono); font-size:12px; color:var(--muted);
+  letter-spacing:.05em; flex:none;
+}
+
+/* ── tabs ───────────────────────────────── */
+nav{display:flex; gap:2px; padding:8px 12px 0}
+nav button{
+  flex:1; padding:9px 4px 11px; font-size:11px; font-weight:700;
+  letter-spacing:.12em; text-transform:uppercase; color:var(--muted);
+  border-bottom:2px solid transparent;
+}
+nav button[aria-selected="true"]{color:#fff; border-bottom-color:var(--stamp)}
+
+main{flex:1; overflow-y:auto; padding:14px 12px 20px; -webkit-overflow-scrolling:touch}
+.view[hidden]{display:none}
+
+/* ── productos ──────────────────────────── */
+.grid{display:grid; grid-template-columns:repeat(auto-fill,minmax(104px,1fr)); gap:8px}
+.prod{
+  position:relative; background:var(--panel-2); border:1px solid var(--line);
+  border-radius:10px; padding:11px 10px 9px; text-align:left; min-height:74px;
+  display:flex; flex-direction:column; justify-content:space-between; gap:6px;
+  transition:transform .08s, background .12s;
+}
+.prod:active{transform:scale(.96); background:var(--panel-3)}
+.prod .pn{font-size:13px; font-weight:600; line-height:1.25}
+.prod .pp{font-family:var(--mono); font-size:12px; color:var(--muted)}
+.prod .badge{
+  position:absolute; top:-6px; right:-6px; min-width:22px; height:22px; padding:0 6px;
+  background:var(--stamp); color:#fff; border-radius:11px;
+  font-family:var(--mono); font-size:12px; font-weight:700;
+  display:flex; align-items:center; justify-content:center;
+}
+.hint{color:var(--muted); font-size:12.5px; line-height:1.55; margin:14px 2px 0}
+
+/* ── el papel (elemento firma) ──────────── */
+.paper-wrap{display:flex; justify-content:center; padding:2px 0 6px}
+#paper{
+  width:100%; max-width:calc(var(--paper-ch) * var(--tick) * .62 + 34px);
+  background:var(--paper); color:var(--ink);
+  font-family:var(--mono); font-size:var(--tick); line-height:1.45;
+  padding:16px 15px 8px;
+  box-shadow:0 10px 30px rgba(0,0,0,.45);
+  /* borde inferior dentado, como papel cortado */
+  clip-path:polygon(0 0,100% 0,100% calc(100% - 6px),
+    97% 100%,94% calc(100% - 6px),91% 100%,88% calc(100% - 6px),85% 100%,82% calc(100% - 6px),
+    79% 100%,76% calc(100% - 6px),73% 100%,70% calc(100% - 6px),67% 100%,64% calc(100% - 6px),
+    61% 100%,58% calc(100% - 6px),55% 100%,52% calc(100% - 6px),49% 100%,46% calc(100% - 6px),
+    43% 100%,40% calc(100% - 6px),37% 100%,34% calc(100% - 6px),31% 100%,28% calc(100% - 6px),
+    25% 100%,22% calc(100% - 6px),19% 100%,16% calc(100% - 6px),13% 100%,10% calc(100% - 6px),
+    7% 100%,4% calc(100% - 6px),1% 100%,0 calc(100% - 6px));
+}
+#paper .c{text-align:center}
+#paper .b{font-weight:700}
+#paper .rule{white-space:nowrap; overflow:hidden; color:#7c8088; letter-spacing:.5px}
+#paper .row{display:flex; justify-content:space-between; gap:8px}
+#paper .row span:last-child{flex:none}
+#paper .gap{height:.9em}
+#paper .name{word-break:break-word}
+#paper .tot{font-weight:700; font-size:calc(var(--tick) * 1.25)}
+#paper .item{padding:1px 0}
+#paper .item.sel{background:rgba(193,39,45,.1); margin:0 -6px; padding:1px 6px}
+#paper .empty{color:#7c8088; text-align:center; padding:16px 0 20px}
+
+.edit{
+  display:flex; align-items:center; gap:6px; margin:4px -6px 6px; padding:5px 6px;
+  border-top:1px dashed #9aa0a8; border-bottom:1px dashed #9aa0a8;
+}
+.edit button{
+  width:40px; height:36px; border-radius:8px; background:#dcdee2; color:var(--ink);
+  font-size:19px; font-weight:700; line-height:1;
+}
+.edit button:active{background:#c8cbd0}
+.edit .q{
+  min-width:44px; text-align:center; font-family:var(--mono); font-weight:700; font-size:15px;
+}
+.edit .del{
+  margin-left:auto; width:auto; padding:0 12px; font-family:var(--ui); font-size:11.5px;
+  font-weight:700; letter-spacing:.08em; text-transform:uppercase;
+  background:var(--stamp); color:#fff;
+}
+
+/* ── barra de total ─────────────────────── */
+footer{
+  border-top:1px solid var(--line); background:var(--panel-2);
+  padding:10px 12px calc(10px + env(safe-area-inset-bottom));
+}
+.tips{display:flex; gap:6px; padding:0 2px 8px}
+.tips button{
+  flex:1; padding:10px 3px; border-radius:9px; background:var(--panel-3); color:var(--muted);
+  font-size:12px; font-weight:700; letter-spacing:.02em;
+}
+.tips button[aria-pressed="true"]{background:var(--ok); color:#fff}
+.tipcustom{padding:0 2px 8px}
+.tipcustom input{font-family:var(--mono)}
+.tipline{
+  display:flex; padding:0 2px 7px; font-family:var(--mono); font-size:12.5px; color:var(--ok);
+}
+.tipline span:last-child{margin-left:auto}
+.totline{display:flex; align-items:baseline; gap:10px; padding:0 2px 9px}.totline b{font-size:11px; letter-spacing:.16em; text-transform:uppercase; color:var(--muted)}
+.totline .v{margin-left:auto; font-family:var(--mono); font-size:23px; font-weight:700}
+.acts{display:flex; gap:8px}
+.acts button{
+  flex:1; padding:14px 8px; border-radius:10px; font-size:13px; font-weight:700;
+  letter-spacing:.06em; text-transform:uppercase; background:var(--panel-3);
+}
+.acts .go{background:var(--stamp); color:#fff; flex:1.5}
+.acts button:disabled{opacity:.4}
+.acts button:active{filter:brightness(1.15)}
+
+/* ── ajustes ────────────────────────────── */
+fieldset{border:0; padding:0; margin:0 0 22px}
+legend{
+  font-size:11px; font-weight:800; letter-spacing:.16em; text-transform:uppercase;
+  color:var(--muted); padding:0 0 10px;
+}
+label.f{display:block; margin-bottom:11px}
+label.f span{display:block; font-size:11.5px; color:var(--muted); margin-bottom:5px}
+input[type=text],input[type=number],select{
+  width:100%; padding:11px 12px; background:var(--panel-2); border:1px solid var(--line);
+  border-radius:9px; color:#e7eaee; font-size:15px;
+}
+input[type=number]{font-family:var(--mono)}
+.two{display:flex; gap:8px}
+.two>*{flex:1}
+.plist{display:flex; flex-direction:column; gap:6px; margin-bottom:10px}
+.prow{display:flex; align-items:center; gap:8px; background:var(--panel-2); border-radius:9px; padding:8px 10px}
+.prow .nm{flex:1; font-size:14px; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+.prow .pr{font-family:var(--mono); font-size:13px; color:var(--muted)}
+.prow .x{width:32px; height:32px; border-radius:8px; background:var(--panel-3); color:var(--stamp); font-size:17px; font-weight:700; flex:none}
+.addrow{display:flex; gap:6px}
+.addrow input:first-child{flex:2}
+.addrow input:nth-child(2){flex:1; min-width:70px}
+.addrow button{width:48px; border-radius:9px; background:var(--ok); color:#fff; font-size:21px; font-weight:700; flex:none}
+.hrow{display:flex; gap:10px; font-family:var(--mono); font-size:12.5px; color:var(--muted); padding:7px 2px; border-bottom:1px solid var(--line)}
+.hrow b{color:#e7eaee}
+.hrow .t{margin-left:auto; color:#e7eaee}
+.link{color:var(--muted); font-size:12px; text-decoration:underline; padding:8px 2px}
+.status{
+  margin:0 2px 12px; font-size:12px; line-height:1.5; color:var(--muted);
+}
+.status b{color:#e7eaee}
+.status.warn b{color:#e8b53c}
+.bk{
+  padding:11px 8px; border-radius:9px; background:var(--panel-3);
+  font-size:12.5px; font-weight:700;
+}
+.bk:active{filter:brightness(1.2)}
+textarea{
+  width:100%; padding:10px 11px; background:var(--panel-2); border:1px solid var(--line);
+  border-radius:9px; color:#e7eaee; font-family:var(--mono); font-size:11.5px;
+  resize:vertical;
+}
+
+.toast{
+  position:fixed; left:50%; bottom:96px; transform:translateX(-50%) translateY(8px);
+  background:#fff; color:var(--ink); font-size:13px; font-weight:600;
+  padding:10px 16px; border-radius:20px; opacity:0; pointer-events:none;
+  transition:opacity .2s, transform .2s; z-index:9;
+}
+.toast.on{opacity:1; transform:translateX(-50%) translateY(0)}
+
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+
+/* ── impresión: solo sale el papel ──────── */
+@page{size:var(--paper-mm) auto; margin:0}
+@media print{
+  body{background:#fff}
+  #app>*{display:none!important}
+  #app>main{display:block!important; overflow:visible; padding:0}
+  main .view{display:none!important}
+  main #view-ticket{display:block!important}
+  #view-ticket>*:not(.paper-wrap){display:none!important}
+  .paper-wrap{padding:0}
+  #paper{
+    width:var(--paper-mm); max-width:none; box-shadow:none; clip-path:none;
+    padding:0 2mm; font-size:var(--print-size,2.55mm); line-height:1.35;
+    background:#fff; color:#000;
+  }
+  #paper .rule{color:#000}
+  #paper .item.sel{background:none; margin:0; padding:1px 0}
+  .edit{display:none!important}
+  .toast{display:none}
+}
+</style>
+</head>
+<body>
+<div id="app">
+  <header>
+    <h1 id="hShop">Mi negocio</h1>
+    <div class="folio" id="hFolio">#000001</div>
+  </header>
+
+  <nav role="tablist">
+    <button role="tab" id="tab-prod" aria-selected="true">Productos</button>
+    <button role="tab" id="tab-ticket" aria-selected="false">Ticket</button>
+    <button role="tab" id="tab-cfg" aria-selected="false">Ajustes</button>
+  </nav>
+
+  <main>
+    <!-- PRODUCTOS -->
+    <section class="view" id="view-prod">
+      <div class="grid" id="grid"></div>
+      <p class="hint">Tocá un producto para agregar uno. Las cantidades se ajustan en la pestaña Ticket.</p>
+    </section>
+
+    <!-- TICKET -->
+    <section class="view" id="view-ticket" hidden>
+      <div class="paper-wrap"><div id="paper"></div></div>
+      <p class="hint">Tocá una línea del ticket para cambiar cantidad o quitarla.</p>
+    </section>
+
+    <!-- AJUSTES -->
+    <section class="view" id="view-cfg" hidden>
+      <fieldset>
+        <legend>Encabezado del ticket</legend>
+        <label class="f"><span>Nombre del negocio</span><input type="text" id="cShop"></label>
+        <label class="f"><span>Dirección / línea 2</span><input type="text" id="cAddr"></label>
+        <label class="f"><span>Teléfono / línea 3</span><input type="text" id="cPhone"></label>
+        <label class="f"><span>Mensaje final</span><input type="text" id="cFooter"></label>
+      </fieldset>
+
+      <fieldset>
+        <legend>Montos e impresión</legend>
+        <div class="two">
+          <label class="f"><span>Ancho</span>
+            <select id="cWidth">
+              <option value="32">58 mm (32 caracteres)</option>
+              <option value="48">80 mm (48 caracteres)</option>
+            </select>
+          </label>
+          <label class="f"><span>Letra</span>
+            <select id="cSize">
+              <option value="2.2">Chica</option>
+              <option value="2.55">Normal</option>
+              <option value="3">Grande</option>
+            </select>
+          </label>
+        </div>
+        <div class="two">
+          <label class="f"><span>Impuesto %</span><input type="number" id="cTax" inputmode="decimal" step="0.01" min="0"></label>
+          <label class="f"><span>Símbolo</span><input type="text" id="cCur" maxlength="3"></label>
+        </div>
+        <label class="f"><span>Formato de monto</span>
+          <select id="cFmt">
+            <option value="clp">$12.990 — sin decimales (CLP)</option>
+            <option value="us">$12,990.50 — decimales con punto</option>
+            <option value="eu">$12.990,50 — decimales con coma</option>
+          </select>
+        </label>
+        <label class="f"><span>La propina se calcula sobre</span>
+          <select id="cTipBase">
+            <option value="sub">Subtotal (neto, antes de impuesto)</option>
+            <option value="total">Total (con impuesto incluido)</option>
+          </select>
+        </label>
+        <label class="f"><span>Próximo folio</span><input type="number" id="cFolioNext" inputmode="numeric" min="1" step="1"></label>
+      </fieldset>
+
+      <fieldset>
+        <legend>Productos</legend>
+        <div class="plist" id="plist"></div>
+        <div class="addrow">
+          <input type="text" id="npName" placeholder="Nombre">
+          <input type="number" id="npPrice" placeholder="0.00" inputmode="decimal" step="0.01" min="0">
+          <button id="npAdd" aria-label="Agregar producto">+</button>
+        </div>
+      </fieldset>
+
+      <fieldset>
+        <legend>Últimos tickets</legend>
+        <div id="hist"></div>
+        <button class="link" id="clearHist">Borrar historial</button>
+      </fieldset>
+
+      <fieldset>
+        <legend>Respaldo</legend>
+        <p class="status" id="storeStatus"></p>
+        <div class="two" style="margin-bottom:8px">
+          <button class="bk" id="bkFile">Descargar respaldo</button>
+          <button class="bk" id="bkLoad">Cargar archivo</button>
+        </div>
+        <input type="file" id="bkFileIn" accept=".json,application/json" hidden>
+        <div class="two" style="margin-bottom:8px">
+          <button class="bk" id="bkOut">Copiar como texto</button>
+          <button class="bk" id="bkIn">Pegar y restaurar</button>
+        </div>
+        <textarea id="bkBox" rows="3" placeholder="Pegá acá un respaldo y tocá «Pegar y restaurar»"></textarea>
+      </fieldset>
+    </section>
+  </main>
+
+  <footer>
+    <div class="tips" id="tips">
+      <button data-tip="none" aria-pressed="true">Sin propina</button>
+      <button data-tip="5" aria-pressed="false">5%</button>
+      <button data-tip="10" aria-pressed="false">10%</button>
+      <button data-tip="other" aria-pressed="false">Otro</button>
+    </div>
+    <div class="tipcustom" id="tipCustom" hidden>
+      <input type="number" id="tipAmt" inputmode="numeric" min="0" step="1" placeholder="Monto de la propina">
+    </div>
+    <div class="tipline" id="tipLine" hidden><span></span><span></span></div>
+    <div class="totline">
+      <b id="fLabel">Total</b>
+      <span class="v" id="fTotal">0</span>
+    </div>
+    <div class="acts">
+      <button id="bClear">Vaciar</button>
+      <button id="bText">Copiar</button>
+      <button class="go" id="bPrint">Imprimir</button>
+    </div>
+  </footer>
+</div>
+<div class="toast" id="toast"></div>
+
+<script>
+"use strict";
+
+/* ── almacenamiento ──────────────────────────────────────────
+   Prioridad: localStorage (el teléfono) → storage del chat → memoria.
+   Se elige una sola vez, probando de verdad si se puede escribir.  */
+const mem = {};
+let backend = null, backendName = "";
+function pickBackend(){
+  if(backend) return backend;
+  try{
+    localStorage.setItem("__probe","1");
+    localStorage.removeItem("__probe");
+    backendName = "este dispositivo";
+    return backend = "ls";
+  }catch(e){}
+  if(window.storage){ backendName = "el chat"; return backend = "ws"; }
+  backendName = "memoria temporal";
+  return backend = "mem";
+}
+const store = {
+  async get(k){
+    const b = pickBackend();
+    try{
+      if(b === "ls"){ const v = localStorage.getItem(k); return v ? JSON.parse(v) : null; }
+      if(b === "ws"){ const r = await window.storage.get(k); return r ? JSON.parse(r.value) : null; }
+    }catch(e){}
+    return k in mem ? mem[k] : null;
+  },
+  async set(k,v){
+    const b = pickBackend();
+    mem[k] = v;
+    try{
+      if(b === "ls")      localStorage.setItem(k, JSON.stringify(v));
+      else if(b === "ws") await window.storage.set(k, JSON.stringify(v));
+    }catch(e){}
+  }
+};
+
+const DEFAULTS = {
+  cfg:{ shop:"MI NEGOCIO", addr:"", phone:"", footer:"¡Gracias por su compra!",
+        width:32, size:"2.55", tax:0, cur:"$", fmt:"clp", tipBase:"sub", folio:1, lastBackup:0 },
+  products:[
+    {id:"p1", name:"Café americano", price:2000},
+    {id:"p2", name:"Café con leche", price:2500},
+    {id:"p3", name:"Agua 600 ml",    price:1200},
+    {id:"p4", name:"Bebida lata",    price:1500},
+    {id:"p5", name:"Pan amasado",    price:600},
+    {id:"p6", name:"Sándwich",       price:4500},
+    {id:"p7", name:"Galletas",       price:900},
+    {id:"p8", name:"Jugo natural",   price:2200}
+  ]
+};
+
+/* formatos de monto */
+const FMT = {
+  clp:{dec:0, thou:".", pt:","},   // $12.990
+  us :{dec:2, thou:",", pt:"."},   // $12,990.50
+  eu :{dec:2, thou:".", pt:","}    // $12.990,50
+};
+const F = () => FMT[cfg.fmt] || FMT.clp;
+const decStep = () => F().dec === 0 ? "1" : "0.01";
+const R = n => F().dec === 0 ? Math.round(n) : Math.round(n*100)/100;
+
+let cfg = {...DEFAULTS.cfg};
+let products = DEFAULTS.products.map(p=>({...p}));
+let cart = [];          // [{id,name,price,qty}]
+let tip = {mode:"none", pct:0, amount:0};
+let history = [];
+let sel = null;         // id de línea abierta para editar
+let tab = "prod";
+
+/* ── utilidades ── */
+const $ = s => document.querySelector(s);
+const el = (t,c,tx) => { const n=document.createElement(t); if(c)n.className=c; if(tx!=null)n.textContent=tx; return n; };
+function money(n){
+  const f = F(), v = Number(n) || 0;
+  const parts = Math.abs(v).toFixed(f.dec).split(".");
+  const int = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, f.thou);
+  return (v < 0 ? "-" : "") + int + (parts[1] ? f.pt + parts[1] : "");
+}
+const W = () => Number(cfg.width) || 32;
+
+function pad(l,r,w){
+  l = String(l); r = String(r);
+  const space = w - l.length - r.length;
+  if(space < 1) l = l.slice(0, Math.max(0, w - r.length - 1));
+  return l + " ".repeat(Math.max(1, w - l.length - r.length)) + r;
+}
+function center(t,w){
+  t = String(t).slice(0,w);
+  return " ".repeat(Math.max(0, Math.floor((w - t.length)/2))) + t;
+}
+function wrap(t,w){
+  const out=[]; let line="";
+  for(const word of String(t).split(/\s+/)){
+    if(!word) continue;
+    if((line+" "+word).trim().length > w){ if(line) out.push(line); line = word.slice(0,w); }
+    else line = (line ? line+" " : "") + word;
+  }
+  if(line) out.push(line);
+  return out.length ? out : [""];
+}
+function toast(msg){
+  const t = $("#toast"); t.textContent = msg; t.classList.add("on");
+  clearTimeout(toast._t); toast._t = setTimeout(()=>t.classList.remove("on"), 1900);
+}
+function stamp(){
+  const d = new Date(), p = n => String(n).padStart(2,"0");
+  return `${p(d.getDate())}/${p(d.getMonth()+1)}/${d.getFullYear()} ${p(d.getHours())}:${p(d.getMinutes())}`;
+}
+const folioStr = n => "#" + String(n).padStart(6,"0");
+
+function totals(){
+  const sub = R(cart.reduce((s,i)=>s + i.price*i.qty, 0));
+  const tax = R(sub * (Number(cfg.tax)||0) / 100);
+  const total = R(sub + tax);
+  const base = cfg.tipBase === "total" ? total : sub;
+  let tp = 0;
+  if(tip.mode === "pct")         tp = R(base * tip.pct / 100);
+  else if(tip.mode === "amount") tp = R(Math.max(0, tip.amount));
+  if(!cart.length) tp = 0;
+  return { sub, tax, total, tip: tp, pay: R(total + tp),
+           count: cart.reduce((s,i)=>s+i.qty,0) };
+}
+function tipLabel(){
+  return tip.mode === "pct" ? `PROPINA ${tip.pct}%` : "PROPINA";
+}
+function resetTip(){
+  tip = {mode:"none", pct:0, amount:0};
+  const n = $("#tipAmt"); if(n) n.value = "";
+}
+
+/* ── carrito ── */
+function add(p){
+  const found = cart.find(i=>i.id===p.id);
+  if(found) found.qty++;
+  else cart.push({id:p.id, name:p.name, price:p.price, qty:1});
+  render();
+}
+function setQty(id,q){
+  const i = cart.findIndex(x=>x.id===id);
+  if(i<0) return;
+  if(q<=0){ cart.splice(i,1); sel=null; } else cart[i].qty = q;
+  render();
+}
+
+/* ── render ── */
+function render(){
+  const t = totals();
+
+  $("#hShop").textContent = cfg.shop || "Ticket";
+  $("#hFolio").textContent = folioStr(cfg.folio);
+  $("#fTotal").textContent = (cfg.cur||"") + money(t.pay);
+  $("#fLabel").textContent = t.tip > 0 ? "Total a pagar" : "Total";
+  $("#bPrint").disabled = $("#bText").disabled = $("#bClear").disabled = cart.length===0;
+
+  // propina
+  const chip = tip.mode === "none" ? "none" : tip.mode === "amount" ? "other" : String(tip.pct);
+  $("#tips").querySelectorAll("button").forEach(b=>
+    b.setAttribute("aria-pressed", String(b.dataset.tip === chip)));
+  $("#tipCustom").hidden = tip.mode !== "amount";
+  $("#tipLine").hidden = !(t.tip > 0);
+  if(t.tip > 0){
+    const s = $("#tipLine").children;
+    s[0].textContent = tipLabel().toLowerCase().replace(/^p/,"P");
+    s[1].textContent = (cfg.cur||"") + money(t.tip);
+  }
+  document.documentElement.style.setProperty("--paper-mm", W()===48 ? "80mm" : "58mm");
+  document.documentElement.style.setProperty("--paper-ch", W());
+  document.documentElement.style.setProperty("--print-size", cfg.size + "mm");
+
+  // grid de productos
+  const g = $("#grid"); g.innerHTML = "";
+  products.forEach(p=>{
+    const b = el("button","prod");
+    b.append(el("span","pn",p.name), el("span","pp",(cfg.cur||"")+money(p.price)));
+    const inCart = cart.find(i=>i.id===p.id);
+    if(inCart) b.append(el("span","badge",String(inCart.qty)));
+    b.onclick = ()=>add(p);
+    g.append(b);
+  });
+
+  renderPaper(t);
+  renderCfgLists();
+}
+
+function renderPaper(t){
+  const w = W(), p = $("#paper"), cur = cfg.cur || "";
+  p.innerHTML = "";
+  const rule = () => { const d = el("div","rule","-".repeat(w)); p.append(d); };
+  const line = (tx,c) => p.append(el("div",c||null,tx));
+
+  line(center(cfg.shop || " ", w), "c b");
+  if(cfg.addr)  wrap(cfg.addr, w).forEach(l=>line(center(l,w),"c"));
+  if(cfg.phone) wrap(cfg.phone, w).forEach(l=>line(center(l,w),"c"));
+  p.append(el("div","gap"));
+  line(pad("TICKET " + folioStr(cfg.folio), "", w));
+  line(pad(stamp(), "", w));
+  rule();
+
+  if(!cart.length){
+    line("Sin productos todavía.","empty");
+  } else {
+    line(pad("CANT / PRODUCTO","IMPORTE",w));
+    cart.forEach(i=>{
+      const box = el("div","item" + (sel===i.id ? " sel" : ""));
+      wrap(i.name, w).forEach(l=> box.append(el("div","name",l)));
+      const r = el("div","row");
+      r.append(el("span",null,`  ${i.qty} x ${money(i.price)}`),
+               el("span",null,money(i.price*i.qty)));
+      box.append(r);
+      box.onclick = e => { e.stopPropagation(); sel = (sel===i.id ? null : i.id); render(); };
+      p.append(box);
+      if(sel===i.id) p.append(editor(i));
+    });
+    rule();
+    if(Number(cfg.tax) > 0){
+      line(pad("SUBTOTAL", cur+money(t.sub), w));
+      line(pad(`IMPUESTO ${cfg.tax}%`, cur+money(t.tax), w));
+    }
+    line(pad("TOTAL", cur+money(t.total), w), t.tip > 0 ? null : "tot");
+    if(t.tip > 0){
+      line(pad(tipLabel(), cur+money(t.tip), w));
+      rule();
+      line(pad("TOTAL A PAGAR", cur+money(t.pay), w), "tot");
+    }
+    line(pad("ARTICULOS", String(t.count), w));
+  }
+
+  p.append(el("div","gap"));
+  if(cfg.footer) wrap(cfg.footer, w).forEach(l=>line(center(l,w),"c"));
+  p.append(el("div","gap"));
+}
+
+function editor(i){
+  const d = el("div","edit");
+  const minus = el("button",null,"−"), q = el("span","q",String(i.qty)), plus = el("button",null,"+");
+  const del = el("button","del","Quitar");
+  minus.onclick = e => { e.stopPropagation(); setQty(i.id, i.qty-1); };
+  plus.onclick  = e => { e.stopPropagation(); setQty(i.id, i.qty+1); };
+  del.onclick   = e => { e.stopPropagation(); setQty(i.id, 0); };
+  d.append(minus,q,plus,del);
+  d.onclick = e => e.stopPropagation();
+  return d;
+}
+
+function ticketText(){
+  const w = W(), t = totals(), cur = cfg.cur||"", L = [];
+  L.push(center(cfg.shop||"", w));
+  if(cfg.addr)  L.push(...wrap(cfg.addr,w).map(l=>center(l,w)));
+  if(cfg.phone) L.push(...wrap(cfg.phone,w).map(l=>center(l,w)));
+  L.push("", "TICKET " + folioStr(cfg.folio), stamp(), "-".repeat(w));
+  L.push(pad("CANT / PRODUCTO","IMPORTE",w));
+  cart.forEach(i=>{
+    L.push(...wrap(i.name,w));
+    L.push(pad(`  ${i.qty} x ${money(i.price)}`, money(i.price*i.qty), w));
+  });
+  L.push("-".repeat(w));
+  if(Number(cfg.tax) > 0){
+    L.push(pad("SUBTOTAL", cur+money(t.sub), w));
+    L.push(pad(`IMPUESTO ${cfg.tax}%`, cur+money(t.tax), w));
+  }
+  L.push(pad("TOTAL", cur+money(t.total), w));
+  if(t.tip > 0){
+    L.push(pad(tipLabel(), cur+money(t.tip), w));
+    L.push("-".repeat(w));
+    L.push(pad("TOTAL A PAGAR", cur+money(t.pay), w));
+  }
+  L.push(pad("ARTICULOS", String(t.count), w), "");
+  if(cfg.footer) L.push(...wrap(cfg.footer,w).map(l=>center(l,w)));
+  L.push("","","");
+  return L.join("\n");
+}
+
+/* ── ajustes ── */
+function renderCfgLists(){
+  const pl = $("#plist"); pl.innerHTML = "";
+  products.forEach(p=>{
+    const r = el("div","prow");
+    const nm = el("input"); nm.type="text"; nm.value=p.name; nm.className="nm";
+    nm.style.cssText="flex:1;min-width:0;padding:6px 8px;font-size:14px";
+    nm.onchange = ()=>{ p.name = nm.value.trim() || p.name; save(); render(); };
+    const pr = el("input"); pr.type="number"; pr.value=p.price;
+    pr.step = decStep(); pr.inputMode = F().dec === 0 ? "numeric" : "decimal";
+    pr.style.cssText="width:80px;flex:none;padding:6px 8px;font-size:13px;font-family:var(--mono)";
+    pr.onchange = ()=>{ p.price = Math.max(0, Number(pr.value)||0); save(); render(); };
+    const x = el("button","x","×");
+    x.onclick = ()=>{
+      products = products.filter(q=>q.id!==p.id);
+      cart = cart.filter(c=>c.id!==p.id);
+      save(); render();
+    };
+    r.append(nm,pr,x); pl.append(r);
+  });
+
+  const np = $("#npPrice");
+  np.step = decStep();
+  np.placeholder = F().dec === 0 ? "0" : "0.00";
+  np.inputMode = F().dec === 0 ? "numeric" : "decimal";
+  const ta = $("#tipAmt");
+  ta.step = decStep();
+  ta.inputMode = F().dec === 0 ? "numeric" : "decimal";
+
+  const h = $("#hist"); h.innerHTML = "";
+  renderStatus();
+  if(!history.length) h.append(el("div","hint","Todavía no imprimiste ningún ticket."));
+  history.slice(0,12).forEach(v=>{
+    const r = el("div","hrow");
+    r.append(el("b",null,folioStr(v.folio)), el("span",null,v.when),
+             el("span","t",(cfg.cur||"")+money(v.total)));
+    h.append(r);
+  });
+}
+
+function bindCfg(){
+  const map = [["#cShop","shop","text"],["#cAddr","addr","text"],["#cPhone","phone","text"],
+               ["#cFooter","footer","text"],["#cWidth","width","num"],["#cSize","size","text"],
+               ["#cTax","tax","num"],["#cCur","cur","text"],["#cFmt","fmt","text"],
+               ["#cTipBase","tipBase","text"]];
+  map.forEach(([sel_,key,kind])=>{
+    const n = $(sel_);
+    n.value = cfg[key];
+    n.oninput = ()=>{ cfg[key] = kind==="num" ? (Number(n.value)||0) : n.value; save(); render(); };
+  });
+  const f = $("#cFolioNext");
+  f.value = cfg.folio;
+  f.oninput = ()=>{ cfg.folio = Math.max(1, parseInt(f.value)||1); save(); render(); };
+
+  $("#npAdd").onclick = ()=>{
+    const name = $("#npName").value.trim();
+    const price = Number($("#npPrice").value);
+    if(!name){ toast("Escribí un nombre"); return; }
+    products.push({ id:"p"+Date.now().toString(36), name, price: Math.max(0, price||0) });
+    $("#npName").value = ""; $("#npPrice").value = "";
+    save(); render(); toast("Producto agregado");
+  };
+  $("#clearHist").onclick = ()=>{ history = []; save(); renderCfgLists(); toast("Historial borrado"); };
+
+  $("#bkFile").onclick = ()=>{
+    const d = new Date(), p = n => String(n).padStart(2,"0");
+    const name = `voucher-respaldo-${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())}.json`;
+    const url = URL.createObjectURL(new Blob([dump()], {type:"application/json"}));
+    const a = el("a"); a.href = url; a.download = name;
+    document.body.append(a); a.click(); a.remove();
+    setTimeout(()=>URL.revokeObjectURL(url), 4000);
+    cfg.lastBackup = Date.now(); save(); renderCfgLists();
+    toast("Respaldo descargado");
+  };
+  $("#bkLoad").onclick = ()=> $("#bkFileIn").click();
+  $("#bkFileIn").onchange = async e=>{
+    const f = e.target.files && e.target.files[0];
+    e.target.value = "";
+    if(!f) return;
+    try{ applyBackup(await f.text()); }
+    catch(err){ toast("No se pudo leer el archivo"); }
+  };
+  $("#bkOut").onclick = async ()=>{
+    const d = dump();
+    $("#bkBox").value = d;
+    cfg.lastBackup = Date.now(); save(); renderCfgLists();
+    try{ await navigator.clipboard.writeText(d); toast("Respaldo copiado"); }
+    catch(e){ toast("Respaldo listo, copialo del cuadro"); }
+  };
+  $("#bkIn").onclick = ()=> applyBackup($("#bkBox").value);
+}
+
+/* ── respaldo ── */
+function dump(){
+  return JSON.stringify({ app:"voucher", v:1, at:new Date().toISOString(), cfg, products, history }, null, 1);
+}
+function applyBackup(raw){
+  raw = String(raw || "").trim();
+  if(!raw){ toast("Primero pegá o elegí un respaldo"); return; }
+  let d;
+  try{ d = JSON.parse(raw); }catch(e){ toast("Ese contenido no es un respaldo válido"); return; }
+  if(!d || typeof d !== "object" || !d.cfg){ toast("Al respaldo le falta la configuración"); return; }
+  cfg = {...DEFAULTS.cfg, ...d.cfg};
+  if(Array.isArray(d.products) && d.products.length) products = d.products;
+  if(Array.isArray(d.history)) history = d.history;
+  cart = []; resetTip(); sel = null;
+  bindCfg(); save(); render();
+  toast("Respaldo restaurado");
+}
+
+/* ── estado del almacenamiento ── */
+let persistInfo = { checked:false, persisted:false, usedKB:null };
+async function checkPersist(){
+  try{
+    if(navigator.storage){
+      if(navigator.storage.persisted) persistInfo.persisted = await navigator.storage.persisted();
+      if(!persistInfo.persisted && navigator.storage.persist)
+        persistInfo.persisted = await navigator.storage.persist();
+      if(navigator.storage.estimate){
+        const e = await navigator.storage.estimate();
+        if(e && e.usage != null) persistInfo.usedKB = Math.max(1, Math.round(e.usage/1024));
+      }
+    }
+  }catch(e){}
+  persistInfo.checked = true;
+  renderStatus();
+}
+function renderStatus(){
+  const st = $("#storeStatus");
+  if(!st) return;
+  const b = pickBackend();
+  const parts = [];
+
+  if(b === "ls"){
+    parts.push(persistInfo.persisted
+      ? "Guardado en <b>este dispositivo, modo permanente</b>: Android no puede borrarlo para liberar espacio."
+      : "Guardado en <b>este dispositivo</b>. Instalá la app desde el menú de Chrome para que el almacenamiento pase a permanente.");
+    if(persistInfo.usedKB) parts.push(`Ocupa ${persistInfo.usedKB} KB.`);
+  } else if(b === "ws"){
+    parts.push("Ahora se guarda en <b>el chat</b>. Al abrirla en Chrome pasa a guardarse en el teléfono.");
+  } else {
+    parts.push("<b>Modo temporal:</b> se pierde al recargar. Abrila desde una dirección http o https.");
+  }
+
+  const lb = Number(cfg.lastBackup) || 0;
+  if(!lb) parts.push("Último respaldo: <b>nunca</b>.");
+  else{
+    const d = Math.floor((Date.now() - lb) / 86400000);
+    parts.push("Último respaldo: <b>" +
+      (d <= 0 ? "hoy" : d === 1 ? "ayer" : "hace " + d + " días") + "</b>.");
+  }
+
+  st.classList.toggle("warn", b !== "ls" || !lb);
+  st.innerHTML = parts.join(" ");
+}
+
+/* ── pestañas ── */
+function show(t){
+  tab = t;
+  ["prod","ticket","cfg"].forEach(k=>{
+    $("#view-"+k).hidden = k!==t;
+    $("#tab-"+k).setAttribute("aria-selected", String(k===t));
+  });
+  $("main").scrollTop = 0;
+}
+
+/* ── imprimir ── */
+function doPrint(){
+  if(!cart.length) return;
+  sel = null; show("ticket"); render();
+  const t = totals();
+  setTimeout(()=>{
+    window.print();
+    history.unshift({ folio: cfg.folio, when: stamp(), total: t.pay, tip: t.tip, count: t.count });
+    history = history.slice(0,50);
+    cfg.folio = Number(cfg.folio) + 1;
+    cart = [];
+    resetTip();
+    save(); render();
+    toast("Ticket " + folioStr(cfg.folio - 1) + " enviado");
+  }, 120);
+}
+
+/* ── persistencia ── */
+let saveT;
+function save(){
+  clearTimeout(saveT);
+  saveT = setTimeout(()=>{
+    store.set("voucher:cfg", cfg);
+    store.set("voucher:products", products);
+    store.set("voucher:history", history);
+  }, 250);
+}
+async function load(){
+  const [c,p,h] = await Promise.all([
+    store.get("voucher:cfg"), store.get("voucher:products"), store.get("voucher:history")
+  ]);
+  if(c) cfg = {...DEFAULTS.cfg, ...c};
+  if(Array.isArray(p) && p.length) products = p;
+  if(Array.isArray(h)) history = h;
+}
+
+/* ── arranque ── */
+(async function init(){
+  await load();
+  bindCfg();
+  $("#tab-prod").onclick   = ()=>show("prod");
+  $("#tab-ticket").onclick = ()=>show("ticket");
+  $("#tab-cfg").onclick    = ()=>show("cfg");
+  $("#bPrint").onclick = doPrint;
+  $("#bClear").onclick = ()=>{ cart=[]; sel=null; resetTip(); render(); };
+
+  $("#tips").addEventListener("click", e=>{
+    const b = e.target.closest("button[data-tip]");
+    if(!b) return;
+    const v = b.dataset.tip;
+    if(v === "none")       resetTip();
+    else if(v === "other") tip = {mode:"amount", pct:0, amount: Number($("#tipAmt").value)||0};
+    else                   tip = {mode:"pct", pct: Number(v), amount:0};
+    render();
+    if(v === "other") $("#tipAmt").focus();
+  });
+  $("#tipAmt").oninput = ()=>{
+    tip.mode = "amount";
+    tip.amount = Math.max(0, Number($("#tipAmt").value)||0);
+    render();
+  };
+  $("#bText").onclick = async ()=>{
+    const txt = ticketText();
+    try{ await navigator.clipboard.writeText(txt); toast("Texto del ticket copiado"); }
+    catch(e){
+      const ta = el("textarea"); ta.value = txt;
+      ta.style.cssText="position:fixed;opacity:0"; document.body.append(ta);
+      ta.select(); document.execCommand("copy"); ta.remove(); toast("Texto copiado");
+    }
+  };
+  $("#paper").addEventListener("click", ()=>{ if(sel){ sel=null; render(); } });
+  render();
+  checkPersist();
+  if("serviceWorker" in navigator && /^https?:$/.test(location.protocol)){
+    navigator.serviceWorker.register("sw.js").catch(()=>{});
+  }
+})();
+</script>
+</body>
+</html>
