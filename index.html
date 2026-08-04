@@ -126,6 +126,7 @@ main{flex:1; overflow-y:auto; padding:14px 12px 20px; -webkit-overflow-scrolling
 #paper .row span:last-child{flex:none}
 #paper .gap{height:.9em}
 #paper .name{word-break:break-word}
+#paper .det{padding-left:2ch; word-break:break-word}
 #paper .tot{font-weight:700; font-size:calc(var(--tick) * 1.25)}
 #paper .item{padding:1px 0}
 #paper .item.sel{background:rgba(193,39,45,.1); margin:0 -6px; padding:1px 6px}
@@ -197,6 +198,8 @@ input[type=number]{font-family:var(--mono)}
 .prow .nm{flex:1; font-size:14px; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
 .prow .pr{font-family:var(--mono); font-size:13px; color:var(--muted)}
 .prow .x{width:32px; height:32px; border-radius:8px; background:var(--panel-3); color:var(--stamp); font-size:17px; font-weight:700; flex:none}
+.prow .dtg{width:32px; height:32px; border-radius:8px; background:var(--panel-3); color:var(--muted); font-size:15px; font-weight:700; flex:none}
+.prow .dtg.on{background:var(--ok); color:#fff}
 .addrow{display:flex; gap:6px}
 .addrow input:first-child{flex:2; min-width:0}
 .addrow input:nth-child(2){flex:1.3; min-width:76px}
@@ -277,7 +280,7 @@ textarea{
 
     <!-- TICKET -->
     <section class="view" id="view-ticket" hidden>
-      <label class="f"><span>N° de boleta (opcional, se imprime solo si lo llenás)</span>
+      <label class="f"><span>N° de operación (opcional, se imprime solo si lo llenás)</span>
         <input type="text" id="bolNum" inputmode="numeric" placeholder="Ej: 12345"></label>
       <div class="paper-wrap"><div id="paper"></div></div>
       <p class="hint">Tocá una línea del ticket para cambiar cantidad o quitarla.</p>
@@ -467,6 +470,7 @@ let sel = null;         // id de línea abierta para editar
 let tab = "prod";
 let catFilter = "*";    // "*"=todas, ""=sin categoría (Otros), otro string=esa categoría
 let cfgCatFilter = "*"; // ídem, para la lista de productos en Ajustes
+let detOpen = new Set();// ids con el editor de desglose abierto en Ajustes
 
 /* ── utilidades ── */
 const $ = s => document.querySelector(s);
@@ -540,7 +544,11 @@ function resetBol(){
 function add(p){
   const found = cart.find(i=>i.id===p.id);
   if(found) found.qty++;
-  else cart.push({id:p.id, name:p.name, price:p.price, qty:1});
+  else{
+    const it = {id:p.id, name:p.name, price:p.price, qty:1};
+    if(p.det) it.det = p.det;
+    cart.push(it);
+  }
   render();
 }
 function setQty(id,q){
@@ -636,7 +644,7 @@ function renderPaper(t){
   if(cfg.phone) wrap(cfg.phone, w).forEach(l=>line(center(l,w),"c"));
   p.append(el("div","gap"));
   line(pad((cfg.docLabel || "Detalle") + " " + folioStr(cfg.folio), "", w));
-  if(boleta) line(pad("BOLETA N° " + boleta, "", w));
+  if(boleta) line(pad("OPERACION: " + boleta, "", w));
   line(pad(stamp(), "", w));
   rule();
 
@@ -647,6 +655,8 @@ function renderPaper(t){
     cart.forEach(i=>{
       const box = el("div","item" + (sel===i.id ? " sel" : ""));
       wrap(i.name, w).forEach(l=> box.append(el("div","name",l)));
+      if(i.det) String(i.det).split(/\n+/).forEach(dl=>
+        wrap(dl, w-2).forEach(l=> box.append(el("div","det",l))));
       const r = el("div","row");
       r.append(el("span",null,`  ${i.qty} x ${money(i.price)}`),
                el("span",null,money(i.price*i.qty)));
@@ -693,11 +703,13 @@ function ticketText(){
   if(cfg.addr)  L.push(...wrap(cfg.addr,w).map(l=>center(l,w)));
   if(cfg.phone) L.push(...wrap(cfg.phone,w).map(l=>center(l,w)));
   L.push("", (cfg.docLabel || "Detalle") + " " + folioStr(cfg.folio));
-  if(boleta) L.push("BOLETA N° " + boleta);
+  if(boleta) L.push("OPERACION: " + boleta);
   L.push(stamp(), "-".repeat(w));
   L.push(pad("CANT / PRODUCTO","IMPORTE",w));
   cart.forEach(i=>{
     L.push(...wrap(i.name,w));
+    if(i.det) String(i.det).split(/\n+/).forEach(dl=>
+      L.push(...wrap(dl, w-2).map(l=>"  "+l)));
     L.push(pad(`  ${i.qty} x ${money(i.price)}`, money(i.price*i.qty), w));
   });
   L.push("-".repeat(w));
@@ -739,13 +751,29 @@ function renderCfgLists(){
     pr.step = decStep(); pr.inputMode = F().dec === 0 ? "numeric" : "decimal";
     pr.style.cssText="width:80px;flex:none;padding:6px 8px;font-size:13px;font-family:var(--mono)";
     pr.onchange = ()=>{ p.price = Math.max(0, Number(pr.value)||0); save(); render(); };
+    const dt = el("button","dtg" + (p.det ? " on" : ""),"≡");
+    dt.setAttribute("aria-label","Desglose de " + p.name);
+    dt.onclick = ()=>{
+      detOpen.has(p.id) ? detOpen.delete(p.id) : detOpen.add(p.id);
+      renderCfgLists();
+    };
     const x = el("button","x","×");
     x.onclick = ()=>{
       products = products.filter(q=>q.id!==p.id);
       cart = cart.filter(c=>c.id!==p.id);
       save(); render();
     };
-    r.append(nm,ct,pr,x); pl.append(r);
+    r.append(nm,ct,pr,dt,x); pl.append(r);
+    if(detOpen.has(p.id)){
+      const ta = el("textarea"); ta.rows = 3; ta.value = p.det || "";
+      ta.placeholder = "Desglose del combo/menú, una línea por ítem:\n+ Bebida 350cc\n+ Papas medianas";
+      ta.onchange = ()=>{
+        const v = ta.value.trim();
+        if(v) p.det = v; else delete p.det;
+        save(); render();
+      };
+      pl.append(ta);
+    }
   });
 
   const dl = $("#catsDl"); dl.innerHTML = "";
@@ -765,7 +793,7 @@ function renderCfgLists(){
   history.slice(0,12).forEach(v=>{
     const r = el("div","hrow");
     r.append(el("b",null,folioStr(v.folio)));
-    if(v.bol) r.append(el("span",null,"B " + v.bol));
+    if(v.bol) r.append(el("span",null,"OP " + v.bol));
     r.append(el("span",null,v.when),
              el("span","t",(cfg.cur||"")+money(v.total)));
     h.append(r);
