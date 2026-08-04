@@ -277,6 +277,8 @@ textarea{
 
     <!-- TICKET -->
     <section class="view" id="view-ticket" hidden>
+      <label class="f"><span>N° de boleta (opcional, se imprime solo si lo llenás)</span>
+        <input type="text" id="bolNum" inputmode="numeric" placeholder="Ej: 12345"></label>
       <div class="paper-wrap"><div id="paper"></div></div>
       <p class="hint">Tocá una línea del ticket para cambiar cantidad o quitarla.</p>
     </section>
@@ -286,9 +288,11 @@ textarea{
       <fieldset>
         <legend>Encabezado del ticket</legend>
         <label class="f"><span>Nombre del negocio</span><input type="text" id="cShop"></label>
+        <label class="f"><span>RUT (se imprime bajo el nombre; vacío = no sale)</span><input type="text" id="cRut" placeholder="12.345.678-9"></label>
         <label class="f"><span>Dirección / línea 2</span><input type="text" id="cAddr"></label>
         <label class="f"><span>Teléfono / línea 3</span><input type="text" id="cPhone"></label>
         <label class="f"><span>Mensaje final</span><input type="text" id="cFooter"></label>
+        <label class="f"><span>Título del ticket</span><input type="text" id="cDocLabel" placeholder="Detalle"></label>
       </fieldset>
 
       <fieldset>
@@ -428,8 +432,9 @@ const store = {
 };
 
 const DEFAULTS = {
-  cfg:{ shop:"MI NEGOCIO", addr:"", phone:"", footer:"¡Gracias por su compra!",
-        width:32, size:"2.55", tax:0, cur:"$", fmt:"clp", tipBase:"sub", folio:1, lastBackup:0 },
+  cfg:{ shop:"MI NEGOCIO", rut:"", addr:"", phone:"", footer:"¡Gracias por su compra!",
+        docLabel:"Detalle", width:32, size:"2.55", tax:0, cur:"$", fmt:"clp",
+        tipBase:"sub", folio:1, lastBackup:0 },
   products:[
     {id:"p1", name:"Café americano", price:2000},
     {id:"p2", name:"Café con leche", price:2500},
@@ -456,6 +461,7 @@ let cfg = {...DEFAULTS.cfg};
 let products = DEFAULTS.products.map(p=>({...p}));
 let cart = [];          // [{id,name,price,qty}]
 let tip = {mode:"none", pct:0, amount:0};
+let boleta = "";        // n° de boleta ligado a esta venta; vacío = no se imprime
 let history = [];
 let sel = null;         // id de línea abierta para editar
 let tab = "prod";
@@ -524,6 +530,10 @@ function tipLabel(){
 function resetTip(){
   tip = {mode:"none", pct:0, amount:0};
   const n = $("#tipAmt"); if(n) n.value = "";
+}
+function resetBol(){
+  boleta = "";
+  const n = $("#bolNum"); if(n) n.value = "";
 }
 
 /* ── carrito ── */
@@ -621,10 +631,12 @@ function renderPaper(t){
   const line = (tx,c) => p.append(el("div",c||null,tx));
 
   line(center(cfg.shop || " ", w), "c b");
+  if(cfg.rut)   line(center("RUT: " + cfg.rut, w), "c");
   if(cfg.addr)  wrap(cfg.addr, w).forEach(l=>line(center(l,w),"c"));
   if(cfg.phone) wrap(cfg.phone, w).forEach(l=>line(center(l,w),"c"));
   p.append(el("div","gap"));
-  line(pad("TICKET " + folioStr(cfg.folio), "", w));
+  line(pad((cfg.docLabel || "Detalle") + " " + folioStr(cfg.folio), "", w));
+  if(boleta) line(pad("BOLETA N° " + boleta, "", w));
   line(pad(stamp(), "", w));
   rule();
 
@@ -654,7 +666,7 @@ function renderPaper(t){
       rule();
       line(pad("TOTAL A PAGAR", cur+money(t.pay), w), "tot");
     }
-    line(pad("ARTICULOS", String(t.count), w));
+    line(pad("TOTAL ITEMS", String(t.count), w));
   }
 
   p.append(el("div","gap"));
@@ -677,9 +689,12 @@ function editor(i){
 function ticketText(){
   const w = W(), t = totals(), cur = cfg.cur||"", L = [];
   L.push(center(cfg.shop||"", w));
+  if(cfg.rut)   L.push(center("RUT: " + cfg.rut, w));
   if(cfg.addr)  L.push(...wrap(cfg.addr,w).map(l=>center(l,w)));
   if(cfg.phone) L.push(...wrap(cfg.phone,w).map(l=>center(l,w)));
-  L.push("", "TICKET " + folioStr(cfg.folio), stamp(), "-".repeat(w));
+  L.push("", (cfg.docLabel || "Detalle") + " " + folioStr(cfg.folio));
+  if(boleta) L.push("BOLETA N° " + boleta);
+  L.push(stamp(), "-".repeat(w));
   L.push(pad("CANT / PRODUCTO","IMPORTE",w));
   cart.forEach(i=>{
     L.push(...wrap(i.name,w));
@@ -696,7 +711,7 @@ function ticketText(){
     L.push("-".repeat(w));
     L.push(pad("TOTAL A PAGAR", cur+money(t.pay), w));
   }
-  L.push(pad("ARTICULOS", String(t.count), w), "");
+  L.push(pad("TOTAL ITEMS", String(t.count), w), "");
   if(cfg.footer) L.push(...wrap(cfg.footer,w).map(l=>center(l,w)));
   L.push("","","");
   return L.join("\n");
@@ -749,15 +764,18 @@ function renderCfgLists(){
   if(!history.length) h.append(el("div","hint","Todavía no imprimiste ningún ticket."));
   history.slice(0,12).forEach(v=>{
     const r = el("div","hrow");
-    r.append(el("b",null,folioStr(v.folio)), el("span",null,v.when),
+    r.append(el("b",null,folioStr(v.folio)));
+    if(v.bol) r.append(el("span",null,"B " + v.bol));
+    r.append(el("span",null,v.when),
              el("span","t",(cfg.cur||"")+money(v.total)));
     h.append(r);
   });
 }
 
 function bindCfg(){
-  const map = [["#cShop","shop","text"],["#cAddr","addr","text"],["#cPhone","phone","text"],
-               ["#cFooter","footer","text"],["#cWidth","width","num"],["#cSize","size","text"],
+  const map = [["#cShop","shop","text"],["#cRut","rut","text"],["#cAddr","addr","text"],
+               ["#cPhone","phone","text"],["#cFooter","footer","text"],["#cDocLabel","docLabel","text"],
+               ["#cWidth","width","num"],["#cSize","size","text"],
                ["#cTax","tax","num"],["#cCur","cur","text"],["#cFmt","fmt","text"],
                ["#cTipBase","tipBase","text"]];
   map.forEach(([sel_,key,kind])=>{
@@ -824,7 +842,7 @@ function applyBackup(raw){
   cfg = {...DEFAULTS.cfg, ...d.cfg};
   if(Array.isArray(d.products) && d.products.length) products = d.products;
   if(Array.isArray(d.history)) history = d.history;
-  cart = []; resetTip(); sel = null;
+  cart = []; resetTip(); resetBol(); sel = null;
   bindCfg(); save(); render();
   toast("Respaldo restaurado");
 }
@@ -892,11 +910,14 @@ function doPrint(){
   const t = totals();
   setTimeout(()=>{
     window.print();
-    history.unshift({ folio: cfg.folio, when: stamp(), total: t.pay, tip: t.tip, count: t.count });
+    const rec = { folio: cfg.folio, when: stamp(), total: t.pay, tip: t.tip, count: t.count };
+    if(boleta) rec.bol = boleta;
+    history.unshift(rec);
     history = history.slice(0,50);
     cfg.folio = Number(cfg.folio) + 1;
     cart = [];
     resetTip();
+    resetBol();
     save(); render();
     toast("Ticket " + folioStr(cfg.folio - 1) + " enviado");
   }, 120);
@@ -929,7 +950,8 @@ async function load(){
   $("#tab-ticket").onclick = ()=>show("ticket");
   $("#tab-cfg").onclick    = ()=>show("cfg");
   $("#bPrint").onclick = doPrint;
-  $("#bClear").onclick = ()=>{ cart=[]; sel=null; resetTip(); render(); };
+  $("#bClear").onclick = ()=>{ cart=[]; sel=null; resetTip(); resetBol(); render(); };
+  $("#bolNum").oninput = ()=>{ boleta = $("#bolNum").value.trim(); render(); };
 
   $("#tips").addEventListener("click", e=>{
     const b = e.target.closest("button[data-tip]");
