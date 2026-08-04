@@ -654,13 +654,12 @@ function renderPaper(t){
     line(pad("CANT / PRODUCTO","IMPORTE",w));
     cart.forEach(i=>{
       const box = el("div","item" + (sel===i.id ? " sel" : ""));
-      wrap(i.name, w).forEach(l=> box.append(el("div","name",l)));
-      if(i.det) String(i.det).split(/\n+/).forEach(dl=>
-        wrap(dl, w-2).forEach(l=> box.append(el("div","det",l))));
       const r = el("div","row");
-      r.append(el("span",null,`  ${i.qty} x ${money(i.price)}`),
+      r.append(el("span","name",`${i.qty}x ${i.name}`),
                el("span",null,money(i.price*i.qty)));
       box.append(r);
+      if(i.det) String(i.det).split(/\n+/).forEach(dl=>
+        wrap(dl, w-2).forEach(l=> box.append(el("div","det",l))));
       box.onclick = e => { e.stopPropagation(); sel = (sel===i.id ? null : i.id); render(); };
       p.append(box);
       if(sel===i.id) p.append(editor(i));
@@ -707,10 +706,12 @@ function ticketText(){
   L.push(stamp(), "-".repeat(w));
   L.push(pad("CANT / PRODUCTO","IMPORTE",w));
   cart.forEach(i=>{
-    L.push(...wrap(i.name,w));
+    const imp = money(i.price*i.qty);
+    const lines = wrap(`${i.qty}x ${i.name}`, w - imp.length - 1);
+    L.push(pad(lines[0], imp, w));
+    lines.slice(1).forEach(l=>L.push("  " + l));
     if(i.det) String(i.det).split(/\n+/).forEach(dl=>
       L.push(...wrap(dl, w-2).map(l=>"  "+l)));
-    L.push(pad(`  ${i.qty} x ${money(i.price)}`, money(i.price*i.qty), w));
   });
   L.push("-".repeat(w));
   if(Number(cfg.tax) > 0){
