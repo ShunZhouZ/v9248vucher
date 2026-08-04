@@ -68,6 +68,15 @@ main{flex:1; overflow-y:auto; padding:14px 12px 20px; -webkit-overflow-scrolling
 .view[hidden]{display:none}
 
 /* ── productos ──────────────────────────── */
+.cats{display:flex; gap:6px; padding:0 0 10px; overflow-x:auto;
+  -webkit-overflow-scrolling:touch; scrollbar-width:none}
+.cats::-webkit-scrollbar{display:none}
+.cats button{
+  flex:none; padding:8px 12px; border-radius:9px; white-space:nowrap;
+  background:var(--panel-2); border:1px solid var(--line); color:var(--muted);
+  font-size:12px; font-weight:700; letter-spacing:.02em;
+}
+.cats button[aria-pressed="true"]{background:var(--stamp); border-color:transparent; color:#fff}
 .grid{display:grid; grid-template-columns:repeat(auto-fill,minmax(104px,1fr)); gap:8px}
 .prod{
   position:relative; background:var(--panel-2); border:1px solid var(--line);
@@ -84,6 +93,13 @@ main{flex:1; overflow-y:auto; padding:14px 12px 20px; -webkit-overflow-scrolling
   font-family:var(--mono); font-size:12px; font-weight:700;
   display:flex; align-items:center; justify-content:center;
 }
+.prod .minus{
+  position:absolute; bottom:-6px; right:-6px; width:28px; height:28px;
+  background:var(--panel-3); border:1px solid var(--line); border-radius:14px;
+  color:#e7eaee; font-size:17px; font-weight:700; line-height:1;
+  display:flex; align-items:center; justify-content:center;
+}
+.prod .minus:active{background:var(--stamp); border-color:transparent}
 .hint{color:var(--muted); font-size:12.5px; line-height:1.55; margin:14px 2px 0}
 
 /* ── el papel (elemento firma) ──────────── */
@@ -182,8 +198,9 @@ input[type=number]{font-family:var(--mono)}
 .prow .pr{font-family:var(--mono); font-size:13px; color:var(--muted)}
 .prow .x{width:32px; height:32px; border-radius:8px; background:var(--panel-3); color:var(--stamp); font-size:17px; font-weight:700; flex:none}
 .addrow{display:flex; gap:6px}
-.addrow input:first-child{flex:2}
-.addrow input:nth-child(2){flex:1; min-width:70px}
+.addrow input:first-child{flex:2; min-width:0}
+.addrow input:nth-child(2){flex:1.3; min-width:76px}
+.addrow input:nth-child(3){flex:1; min-width:64px}
 .addrow button{width:48px; border-radius:9px; background:var(--ok); color:#fff; font-size:21px; font-weight:700; flex:none}
 .hrow{display:flex; gap:10px; font-family:var(--mono); font-size:12.5px; color:var(--muted); padding:7px 2px; border-bottom:1px solid var(--line)}
 .hrow b{color:#e7eaee}
@@ -253,6 +270,7 @@ textarea{
   <main>
     <!-- PRODUCTOS -->
     <section class="view" id="view-prod">
+      <div class="cats" id="cats" hidden></div>
       <div class="grid" id="grid"></div>
       <p class="hint">Tocá un producto para agregar uno. Las cantidades se ajustan en la pestaña Ticket.</p>
     </section>
@@ -312,12 +330,15 @@ textarea{
 
       <fieldset>
         <legend>Productos</legend>
+        <div class="cats" id="cfgCats" hidden></div>
         <div class="plist" id="plist"></div>
         <div class="addrow">
           <input type="text" id="npName" placeholder="Nombre">
+          <input type="text" id="npCat" placeholder="Categoría" list="catsDl">
           <input type="number" id="npPrice" placeholder="0.00" inputmode="decimal" step="0.01" min="0">
           <button id="npAdd" aria-label="Agregar producto">+</button>
         </div>
+        <datalist id="catsDl"></datalist>
       </fieldset>
 
       <fieldset>
@@ -438,6 +459,8 @@ let tip = {mode:"none", pct:0, amount:0};
 let history = [];
 let sel = null;         // id de línea abierta para editar
 let tab = "prod";
+let catFilter = "*";    // "*"=todas, ""=sin categoría (Otros), otro string=esa categoría
+let cfgCatFilter = "*"; // ídem, para la lista de productos en Ajustes
 
 /* ── utilidades ── */
 const $ = s => document.querySelector(s);
@@ -449,6 +472,9 @@ function money(n){
   return (v < 0 ? "-" : "") + int + (parts[1] ? f.pt + parts[1] : "");
 }
 const W = () => Number(cfg.width) || 32;
+const catOf = p => (p.cat || "").trim();   // los productos legacy no traen cat
+const cats = () => [...new Set(products.map(catOf).filter(Boolean))]
+  .sort((a,b)=>a.localeCompare(b,"es"));
 
 function pad(l,r,w){
   l = String(l); r = String(r);
@@ -514,6 +540,30 @@ function setQty(id,q){
   render();
 }
 
+/* ── chips de categoría ──
+   Arma la fila en `box`; devuelve `cur` normalizado (vuelve a "*" si la
+   categoría filtrada ya no existe). Sin categorías, oculta la fila. */
+function chipRow(box, cur, onPick){
+  const cs = cats();
+  const hasOther = products.some(p=>!catOf(p));
+  if(cur !== "*" && (cur === "" ? !hasOther : !cs.includes(cur))) cur = "*";
+  box.hidden = cs.length === 0;
+  box.innerHTML = "";
+  if(cs.length){
+    const chip = (label,val)=>{
+      const b = el("button",null,label);
+      b.setAttribute("aria-pressed", String(cur === val));
+      b.onclick = ()=>onPick(val);
+      box.append(b);
+    };
+    chip("Todos","*");
+    cs.forEach(c=>chip(c,c));
+    if(hasOther) chip("Otros","");
+  }
+  return cur;
+}
+const catMatch = (p,cur) => cur === "*" || catOf(p) === cur;
+
 /* ── render ── */
 function render(){
   const t = totals();
@@ -539,13 +589,23 @@ function render(){
   document.documentElement.style.setProperty("--paper-ch", W());
   document.documentElement.style.setProperty("--print-size", cfg.size + "mm");
 
+  // chips de categoría
+  catFilter = chipRow($("#cats"), catFilter, v=>{ catFilter = v; render(); });
+
   // grid de productos
   const g = $("#grid"); g.innerHTML = "";
-  products.forEach(p=>{
+  products.filter(p => catMatch(p, catFilter)).forEach(p=>{
     const b = el("button","prod");
     b.append(el("span","pn",p.name), el("span","pp",(cfg.cur||"")+money(p.price)));
     const inCart = cart.find(i=>i.id===p.id);
-    if(inCart) b.append(el("span","badge",String(inCart.qty)));
+    if(inCart){
+      b.append(el("span","badge",String(inCart.qty)));
+      const m = el("span","minus","−");
+      m.setAttribute("role","button");
+      m.setAttribute("aria-label","Quitar uno de " + p.name);
+      m.onclick = e => { e.stopPropagation(); setQty(p.id, inCart.qty - 1); };
+      b.append(m);
+    }
     b.onclick = ()=>add(p);
     g.append(b);
   });
@@ -644,12 +704,22 @@ function ticketText(){
 
 /* ── ajustes ── */
 function renderCfgLists(){
+  cfgCatFilter = chipRow($("#cfgCats"), cfgCatFilter, v=>{
+    cfgCatFilter = v;
+    if(v !== "*") $("#npCat").value = v;   // pre-llena el alta ("" para Otros)
+    render();
+  });
+
   const pl = $("#plist"); pl.innerHTML = "";
-  products.forEach(p=>{
+  products.filter(p => catMatch(p, cfgCatFilter)).forEach(p=>{
     const r = el("div","prow");
     const nm = el("input"); nm.type="text"; nm.value=p.name; nm.className="nm";
     nm.style.cssText="flex:1;min-width:0;padding:6px 8px;font-size:14px";
     nm.onchange = ()=>{ p.name = nm.value.trim() || p.name; save(); render(); };
+    const ct = el("input"); ct.type="text"; ct.value = p.cat || "";
+    ct.placeholder = "Categoría"; ct.setAttribute("list","catsDl");
+    ct.style.cssText="width:84px;flex:none;padding:6px 8px;font-size:12px";
+    ct.onchange = ()=>{ p.cat = ct.value.trim(); save(); render(); };
     const pr = el("input"); pr.type="number"; pr.value=p.price;
     pr.step = decStep(); pr.inputMode = F().dec === 0 ? "numeric" : "decimal";
     pr.style.cssText="width:80px;flex:none;padding:6px 8px;font-size:13px;font-family:var(--mono)";
@@ -660,8 +730,11 @@ function renderCfgLists(){
       cart = cart.filter(c=>c.id!==p.id);
       save(); render();
     };
-    r.append(nm,pr,x); pl.append(r);
+    r.append(nm,ct,pr,x); pl.append(r);
   });
+
+  const dl = $("#catsDl"); dl.innerHTML = "";
+  cats().forEach(c => dl.append(el("option", null, c)));
 
   const np = $("#npPrice");
   np.step = decStep();
@@ -699,8 +772,12 @@ function bindCfg(){
   $("#npAdd").onclick = ()=>{
     const name = $("#npName").value.trim();
     const price = Number($("#npPrice").value);
+    const cat = $("#npCat").value.trim();
     if(!name){ toast("Escribí un nombre"); return; }
-    products.push({ id:"p"+Date.now().toString(36), name, price: Math.max(0, price||0) });
+    const p = { id:"p"+Date.now().toString(36), name, price: Math.max(0, price||0) };
+    if(cat) p.cat = cat;
+    products.push(p);
+    // la categoría se conserva para cargar varios productos seguidos
     $("#npName").value = ""; $("#npPrice").value = "";
     save(); render(); toast("Producto agregado");
   };
