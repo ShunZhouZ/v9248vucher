@@ -81,6 +81,13 @@ main{flex:1; overflow-y:auto; padding:14px 12px 20px; -webkit-overflow-scrolling
 .view[hidden]{display:none}
 
 /* ── productos ──────────────────────────── */
+.svc{display:flex; gap:6px; padding:0 0 10px}
+.svc button{
+  flex:1; padding:10px 3px; border-radius:9px; background:var(--panel-2);
+  border:1px solid var(--line); color:var(--muted);
+  font-size:12.5px; font-weight:700; letter-spacing:.06em; text-transform:uppercase;
+}
+.svc button[aria-pressed="true"]{background:var(--stamp); border-color:transparent; color:#fff}
 .cats{display:flex; gap:6px; padding:0 0 10px; overflow-x:auto;
   -webkit-overflow-scrolling:touch; scrollbar-width:none}
 .cats::-webkit-scrollbar{display:none}
@@ -305,6 +312,10 @@ textarea{
   <main>
     <!-- PRODUCTOS -->
     <section class="view" id="view-prod">
+      <div class="svc" id="svc">
+        <button data-svc="mesa" aria-pressed="true">Mesa</button>
+        <button data-svc="llevar" aria-pressed="false">Llevar</button>
+      </div>
       <div class="cats" id="cats" hidden></div>
       <div class="grid" id="grid"></div>
       <p class="hint">Tocá un producto para agregar uno. Las cantidades se ajustan en la pestaña Ticket.</p>
@@ -479,7 +490,7 @@ const store = {
 const DEFAULTS = {
   cfg:{ shop:"MI NEGOCIO", rut:"", addr:"", phone:"", footer:"¡Gracias por su compra!",
         docLabel:"Detalle", width:32, size:"2.55", tax:0, cur:"$", fmt:"clp",
-        tipBase:"sub", folio:1, lastBackup:0, theme:"dark" },
+        tipBase:"sub", folio:1, lastBackup:0, theme:"dark", svc:"mesa" },
   products:[
     {id:"p1", name:"Café americano", price:2000},
     {id:"p2", name:"Café con leche", price:2500},
@@ -528,6 +539,15 @@ const W = () => Number(cfg.width) || 32;
 const catOf = p => (p.cat || "").trim();   // los productos legacy no traen cat
 const cats = () => [...new Set(products.map(catOf).filter(Boolean))]
   .sort((a,b)=>a.localeCompare(b,"es"));
+/* precio según modo de venta: `price` es Mesa; `priceL` (opcional) es Llevar */
+const priceOf = p => (cfg.svc === "llevar" && p.priceL != null) ? p.priceL : p.price;
+const svcLabel = () => cfg.svc === "llevar" ? "LLEVAR" : "MESA";
+function repriceCart(){
+  cart.forEach(i=>{
+    const p = products.find(q=>q.id===i.id);
+    if(p) i.price = priceOf(p);
+  });
+}
 
 function pad(l,r,w){
   l = String(l); r = String(r);
@@ -588,7 +608,7 @@ function add(p){
   const found = cart.find(i=>i.id===p.id);
   if(found) found.qty++;
   else{
-    const it = {id:p.id, name:p.name, price:p.price, qty:1};
+    const it = {id:p.id, name:p.name, price:priceOf(p), qty:1};
     if(p.det) it.det = p.det;
     cart.push(it);
   }
@@ -655,6 +675,10 @@ function render(){
   document.documentElement.style.setProperty("--paper-ch", W());
   document.documentElement.style.setProperty("--print-size", cfg.size + "mm");
 
+  // modo de venta
+  $("#svc").querySelectorAll("button").forEach(b=>
+    b.setAttribute("aria-pressed", String(b.dataset.svc === (cfg.svc || "mesa"))));
+
   // chips de categoría
   catFilter = chipRow($("#cats"), catFilter, v=>{ catFilter = v; render(); });
 
@@ -662,7 +686,7 @@ function render(){
   const g = $("#grid"); g.innerHTML = "";
   products.filter(p => catMatch(p, catFilter)).forEach(p=>{
     const b = el("button","prod");
-    b.append(el("span","pn",p.name), el("span","pp",(cfg.cur||"")+money(p.price)));
+    b.append(el("span","pn",p.name), el("span","pp",(cfg.cur||"")+money(priceOf(p))));
     const inCart = cart.find(i=>i.id===p.id);
     if(inCart){
       b.append(el("span","badge",String(inCart.qty)));
@@ -691,7 +715,10 @@ function renderPaper(t){
   if(cfg.addr)  wrap(cfg.addr, w).forEach(l=>line(center(l,w),"c"));
   if(cfg.phone) wrap(cfg.phone, w).forEach(l=>line(center(l,w),"c"));
   p.append(el("div","gap"));
-  line(pad((cfg.docLabel || "Detalle") + " " + folioStr(cfg.folio), "", w));
+  const tl = el("div","row");
+  tl.append(el("span",null,(cfg.docLabel || "Detalle") + " " + folioStr(cfg.folio)),
+            el("span",null,svcLabel()));
+  p.append(tl);
   if(boleta) line(pad("OPERACION: " + boleta, "", w));
   line(pad(printWhen || stamp(), "", w));
   rule();
@@ -749,7 +776,7 @@ function ticketText(){
   if(cfg.rut)   L.push(center("RUT: " + cfg.rut, w));
   if(cfg.addr)  L.push(...wrap(cfg.addr,w).map(l=>center(l,w)));
   if(cfg.phone) L.push(...wrap(cfg.phone,w).map(l=>center(l,w)));
-  L.push("", (cfg.docLabel || "Detalle") + " " + folioStr(cfg.folio));
+  L.push("", pad((cfg.docLabel || "Detalle") + " " + folioStr(cfg.folio), svcLabel(), w));
   if(boleta) L.push("OPERACION: " + boleta);
   L.push(printWhen || stamp(), "-".repeat(w));
   L.push(pad("CANT / PRODUCTO","IMPORTE",w));
@@ -800,8 +827,8 @@ function renderCfgLists(){
     pr.step = decStep(); pr.inputMode = F().dec === 0 ? "numeric" : "decimal";
     pr.style.cssText="width:80px;flex:none;padding:6px 8px;font-size:13px;font-family:var(--mono)";
     pr.onchange = ()=>{ p.price = Math.max(0, Number(pr.value)||0); save(); render(); };
-    const dt = el("button","dtg" + (p.det ? " on" : ""),"≡");
-    dt.setAttribute("aria-label","Desglose de " + p.name);
+    const dt = el("button","dtg" + ((p.det || p.priceL != null) ? " on" : ""),"≡");
+    dt.setAttribute("aria-label","Más opciones de " + p.name);
     dt.onclick = ()=>{
       detOpen.has(p.id) ? detOpen.delete(p.id) : detOpen.add(p.id);
       renderCfgLists();
@@ -814,6 +841,18 @@ function renderCfgLists(){
     };
     r.append(nm,ct,pr,dt,x); pl.append(r);
     if(detOpen.has(p.id)){
+      const lw = el("label","f");
+      lw.append(el("span",null,"Precio Llevar (vacío = mismo precio que Mesa)"));
+      const p2 = el("input"); p2.type = "number"; p2.min = "0";
+      p2.step = decStep(); p2.inputMode = F().dec === 0 ? "numeric" : "decimal";
+      p2.value = p.priceL != null ? p.priceL : "";
+      p2.onchange = ()=>{
+        const v = p2.value.trim();
+        if(v === "") delete p.priceL;
+        else p.priceL = Math.max(0, Number(v)||0);
+        repriceCart(); save(); render();
+      };
+      lw.append(p2); pl.append(lw);
       const ta = el("textarea"); ta.rows = 3; ta.value = p.det || "";
       ta.placeholder = "Desglose del combo/menú, una línea por ítem:\n+ Bebida 350cc\n+ Papas medianas";
       ta.onchange = ()=>{
@@ -1010,7 +1049,7 @@ function doPrint(){
   setTimeout(()=>{
     window.print();
     const rec = { folio: cfg.folio, when: stamp(), total: t.pay, tip: t.tip, count: t.count,
-                  items: cart.map(i=>({...i})) };
+                  svc: cfg.svc, items: cart.map(i=>({...i})) };
     if(boleta) rec.bol = boleta;
     history.unshift(rec);
     history = history.slice(0,50);
@@ -1027,18 +1066,19 @@ function doPrint(){
    Swap temporal del estado en curso; no avanza el folio ni agrega historial. */
 function reprintTicket(v){
   if(!v.items || !v.items.length) return;
-  const saved = { cart, tip, boleta, folio: cfg.folio, sel };
+  const saved = { cart, tip, boleta, folio: cfg.folio, sel, svc: cfg.svc };
   cart = v.items.map(i=>({...i}));
   tip = v.tip > 0 ? {mode:"amount", pct:0, amount:v.tip} : {mode:"none", pct:0, amount:0};
   boleta = v.bol || "";
   cfg.folio = v.folio;
+  cfg.svc = v.svc || cfg.svc;
   printWhen = v.when;
   sel = null;
   show("ticket"); render();
   setTimeout(()=>{
     window.print();
     cart = saved.cart; tip = saved.tip; boleta = saved.boleta;
-    cfg.folio = saved.folio; sel = saved.sel; printWhen = null;
+    cfg.folio = saved.folio; cfg.svc = saved.svc; sel = saved.sel; printWhen = null;
     render();
     toast("Reimpresión de " + folioStr(v.folio) + " enviada");
   }, 120);
@@ -1049,14 +1089,16 @@ function reprintTicket(v){
    inerte, sin handlers) a #pvPaper y restaura el estado en curso al instante. */
 let pvRec = null;
 function renderRecordInto(target, v){
-  const saved = { cart, tip, boleta, folio: cfg.folio, printWhen, sel };
+  const saved = { cart, tip, boleta, folio: cfg.folio, printWhen, sel, svc: cfg.svc };
   cart = v.items.map(i=>({...i}));
   tip = v.tip > 0 ? {mode:"amount", pct:0, amount:v.tip} : {mode:"none", pct:0, amount:0};
-  boleta = v.bol || ""; cfg.folio = v.folio; printWhen = v.when; sel = null;
+  boleta = v.bol || ""; cfg.folio = v.folio; cfg.svc = v.svc || cfg.svc;
+  printWhen = v.when; sel = null;
   renderPaper(totals());
   target.innerHTML = $("#paper").innerHTML;
   cart = saved.cart; tip = saved.tip; boleta = saved.boleta;
-  cfg.folio = saved.folio; printWhen = saved.printWhen; sel = saved.sel;
+  cfg.folio = saved.folio; cfg.svc = saved.svc;
+  printWhen = saved.printWhen; sel = saved.sel;
   renderPaper(totals());
 }
 function openPreview(v){
@@ -1088,6 +1130,13 @@ async function load(){
 (async function init(){
   await load();
   bindCfg();
+  $("#svc").addEventListener("click", e=>{
+    const b = e.target.closest("button[data-svc]");
+    if(!b || b.dataset.svc === cfg.svc) return;
+    cfg.svc = b.dataset.svc;
+    repriceCart();
+    save(); render();
+  });
   $("#themeTg").onclick = ()=>{
     cfg.theme = cfg.theme === "light" ? "dark" : "light";
     save(); render();
