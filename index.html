@@ -313,8 +313,8 @@ textarea{
     <!-- PRODUCTOS -->
     <section class="view" id="view-prod">
       <div class="svc" id="svc">
-        <button data-svc="mesa" aria-pressed="true">Mesa</button>
-        <button data-svc="llevar" aria-pressed="false">Llevar</button>
+        <button data-svc="llevar" aria-pressed="true">Llevar</button>
+        <button data-svc="mesa" aria-pressed="false">Mesa</button>
       </div>
       <div class="cats" id="cats" hidden></div>
       <div class="grid" id="grid"></div>
@@ -490,7 +490,7 @@ const store = {
 const DEFAULTS = {
   cfg:{ shop:"MI NEGOCIO", rut:"", addr:"", phone:"", footer:"¡Gracias por su compra!",
         docLabel:"Detalle", width:32, size:"2.55", tax:0, cur:"$", fmt:"clp",
-        tipBase:"sub", folio:1, lastBackup:0, theme:"dark", svc:"mesa" },
+        tipBase:"sub", folio:1, lastBackup:0, theme:"dark", svc:"llevar" },
   products:[
     {id:"p1", name:"Café americano", price:2000},
     {id:"p2", name:"Café con leche", price:2500},
@@ -539,9 +539,9 @@ const W = () => Number(cfg.width) || 32;
 const catOf = p => (p.cat || "").trim();   // los productos legacy no traen cat
 const cats = () => [...new Set(products.map(catOf).filter(Boolean))]
   .sort((a,b)=>a.localeCompare(b,"es"));
-/* precio según modo de venta: `price` es Mesa; `priceL` (opcional) es Llevar */
-const priceOf = p => (cfg.svc === "llevar" && p.priceL != null) ? p.priceL : p.price;
-const svcLabel = () => cfg.svc === "llevar" ? "LLEVAR" : "MESA";
+/* precio según modo de venta: `price` es Llevar (default); `priceM` (opcional) es Mesa */
+const priceOf = p => (cfg.svc === "mesa" && p.priceM != null) ? p.priceM : p.price;
+const svcLabel = () => cfg.svc === "mesa" ? "MESA" : "LLEVAR";
 function repriceCart(){
   cart.forEach(i=>{
     const p = products.find(q=>q.id===i.id);
@@ -677,7 +677,7 @@ function render(){
 
   // modo de venta
   $("#svc").querySelectorAll("button").forEach(b=>
-    b.setAttribute("aria-pressed", String(b.dataset.svc === (cfg.svc || "mesa"))));
+    b.setAttribute("aria-pressed", String(b.dataset.svc === (cfg.svc || "llevar"))));
 
   // chips de categoría
   catFilter = chipRow($("#cats"), catFilter, v=>{ catFilter = v; render(); });
@@ -827,7 +827,7 @@ function renderCfgLists(){
     pr.step = decStep(); pr.inputMode = F().dec === 0 ? "numeric" : "decimal";
     pr.style.cssText="width:80px;flex:none;padding:6px 8px;font-size:13px;font-family:var(--mono)";
     pr.onchange = ()=>{ p.price = Math.max(0, Number(pr.value)||0); save(); render(); };
-    const dt = el("button","dtg" + ((p.det || p.priceL != null) ? " on" : ""),"≡");
+    const dt = el("button","dtg" + ((p.det || p.priceM != null) ? " on" : ""),"≡");
     dt.setAttribute("aria-label","Más opciones de " + p.name);
     dt.onclick = ()=>{
       detOpen.has(p.id) ? detOpen.delete(p.id) : detOpen.add(p.id);
@@ -842,14 +842,14 @@ function renderCfgLists(){
     r.append(nm,ct,pr,dt,x); pl.append(r);
     if(detOpen.has(p.id)){
       const lw = el("label","f");
-      lw.append(el("span",null,"Precio Llevar (vacío = mismo precio que Mesa)"));
+      lw.append(el("span",null,"Precio Mesa (vacío = mismo precio que Llevar)"));
       const p2 = el("input"); p2.type = "number"; p2.min = "0";
       p2.step = decStep(); p2.inputMode = F().dec === 0 ? "numeric" : "decimal";
-      p2.value = p.priceL != null ? p.priceL : "";
+      p2.value = p.priceM != null ? p.priceM : "";
       p2.onchange = ()=>{
         const v = p2.value.trim();
-        if(v === "") delete p.priceL;
-        else p.priceL = Math.max(0, Number(v)||0);
+        if(v === "") delete p.priceM;
+        else p.priceM = Math.max(0, Number(v)||0);
         repriceCart(); save(); render();
       };
       lw.append(p2); pl.append(lw);
