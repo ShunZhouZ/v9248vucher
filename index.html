@@ -67,6 +67,7 @@ header .folio{
   letter-spacing:.05em; flex:none;
 }
 header .tg{flex:none; font-size:16px; line-height:1; padding:2px 2px 2px 8px; color:var(--muted)}
+header .tg[aria-pressed="true"]{color:var(--stamp)}
 
 /* ── tabs ───────────────────────────────── */
 nav{display:flex; gap:2px; padding:8px 12px 0}
@@ -286,8 +287,9 @@ textarea{
   main{padding:18px 20px 24px}
   .grid{grid-template-columns:repeat(auto-fill,minmax(128px,1fr)); gap:10px}
   .prod{min-height:82px}
-  /* :not([hidden]) es clave: el ID le ganaría a `.view[hidden]` y quedaría siempre visible */
-  #view-cfg:not([hidden]){display:grid; grid-template-columns:1fr 1fr; column-gap:28px; align-items:start}
+  /* masonry: los fieldsets se apilan compactos, sin huecos de alineación por filas */
+  #view-cfg{columns:2; column-gap:28px}
+  #view-cfg fieldset{break-inside:avoid}
   .mbox{max-width:460px}
 }
 @media (min-width:1100px){
@@ -328,6 +330,7 @@ textarea{
 <div id="app">
   <header>
     <h1 id="hShop">Mi negocio</h1>
+    <button class="tg" id="cfgTg" aria-label="Ajustes" aria-pressed="false">⚙</button>
     <div class="folio" id="hFolio">#000001</div>
     <button class="tg" id="themeTg" aria-label="Cambiar tema">☀</button>
   </header>
@@ -335,7 +338,7 @@ textarea{
   <nav role="tablist">
     <button role="tab" id="tab-prod" aria-selected="true">Productos</button>
     <button role="tab" id="tab-ticket" aria-selected="false">Ticket</button>
-    <button role="tab" id="tab-cfg" aria-selected="false">Ajustes</button>
+    <button role="tab" id="tab-hist" aria-selected="false">Historial</button>
   </nav>
 
   <main>
@@ -347,16 +350,26 @@ textarea{
       </div>
       <div class="cats" id="cats" hidden></div>
       <div class="grid" id="grid"></div>
-      <p class="hint">Tocá un producto para agregar uno. Las cantidades se ajustan en la pestaña Ticket.</p>
+      <p class="hint">Toca un producto para agregar uno. Las cantidades se ajustan en la pestaña Ticket.</p>
     </section>
 
     <!-- TICKET -->
     <section class="view" id="view-ticket" hidden>
-      <label class="f"><span>N° de operación (opcional, se imprime solo si lo llenás)</span>
+      <label class="f"><span>N° de operación (opcional, se imprime solo si lo llenas)</span>
         <input type="text" id="bolNum" inputmode="numeric" placeholder="Ej: 12345"></label>
       <button class="tgl" id="detTg" aria-pressed="true">Detallado</button>
       <div class="paper-wrap"><div id="paper" class="ppr"></div></div>
-      <p class="hint">Tocá una línea del ticket para cambiar cantidad o quitarla.</p>
+      <p class="hint">Toca una línea del ticket para cambiar cantidad o quitarla.</p>
+    </section>
+
+    <!-- HISTORIAL -->
+    <section class="view" id="view-hist" hidden>
+      <fieldset>
+        <legend>Últimos tickets</legend>
+        <div id="hist"></div>
+        <button class="link" id="clearHist">Borrar historial</button>
+        <button class="link" id="resetFolio">Reiniciar numeración</button>
+      </fieldset>
     </section>
 
     <!-- AJUSTES -->
@@ -422,13 +435,6 @@ textarea{
       </fieldset>
 
       <fieldset>
-        <legend>Últimos tickets</legend>
-        <div id="hist"></div>
-        <button class="link" id="clearHist">Borrar historial</button>
-        <button class="link" id="resetFolio">Reiniciar numeración</button>
-      </fieldset>
-
-      <fieldset>
         <legend>Respaldo</legend>
         <p class="status" id="storeStatus"></p>
         <div class="two" style="margin-bottom:8px">
@@ -440,7 +446,7 @@ textarea{
           <button class="bk" id="bkOut">Copiar como texto</button>
           <button class="bk" id="bkIn">Pegar y restaurar</button>
         </div>
-        <textarea id="bkBox" rows="3" placeholder="Pegá acá un respaldo y tocá «Pegar y restaurar»"></textarea>
+        <textarea id="bkBox" rows="3" placeholder="Pega aquí un respaldo y toca «Pegar y restaurar»"></textarea>
       </fieldset>
     </section>
   </main>
@@ -923,7 +929,7 @@ function renderCfgLists(){
   const h = $("#hist"); h.innerHTML = "";
   renderStatus();
   if(!history.length) h.append(el("div","hint","Todavía no imprimiste ningún ticket."));
-  history.slice(0,12).forEach(v=>{
+  history.forEach(v=>{
     const r = el("div","hrow");
     r.append(el("b",null,folioStr(v.folio)));
     if(v.bol) r.append(el("span",null,"OP " + v.bol));
@@ -958,7 +964,7 @@ function bindCfg(){
     const name = $("#npName").value.trim();
     const price = Number($("#npPrice").value);
     const cat = $("#npCat").value.trim();
-    if(!name){ toast("Escribí un nombre"); return; }
+    if(!name){ toast("Escribe un nombre"); return; }
     const p = { id:"p"+Date.now().toString(36), name, price: Math.max(0, price||0) };
     if(cat) p.cat = cat;
     products.push(p);
@@ -1007,7 +1013,7 @@ function bindCfg(){
     $("#bkBox").value = d;
     cfg.lastBackup = Date.now(); save(); renderCfgLists();
     try{ await navigator.clipboard.writeText(d); toast("Respaldo copiado"); }
-    catch(e){ toast("Respaldo listo, copialo del cuadro"); }
+    catch(e){ toast("Respaldo listo, cópialo del cuadro"); }
   };
   $("#bkIn").onclick = ()=> applyBackup($("#bkBox").value);
 }
@@ -1018,7 +1024,7 @@ function dump(){
 }
 function applyBackup(raw){
   raw = String(raw || "").trim();
-  if(!raw){ toast("Primero pegá o elegí un respaldo"); return; }
+  if(!raw){ toast("Primero pega o elige un respaldo"); return; }
   let d;
   try{ d = JSON.parse(raw); }catch(e){ toast("Ese contenido no es un respaldo válido"); return; }
   if(!d || typeof d !== "object" || !d.cfg){ toast("Al respaldo le falta la configuración"); return; }
@@ -1056,12 +1062,12 @@ function renderStatus(){
   if(b === "ls"){
     parts.push(persistInfo.persisted
       ? "Guardado en <b>este dispositivo, modo permanente</b>: Android no puede borrarlo para liberar espacio."
-      : "Guardado en <b>este dispositivo</b>. Instalá la app desde el menú de Chrome para que el almacenamiento pase a permanente.");
+      : "Guardado en <b>este dispositivo</b>. Instala la app desde el menú de Chrome para que el almacenamiento pase a permanente.");
     if(persistInfo.usedKB) parts.push(`Ocupa ${persistInfo.usedKB} KB.`);
   } else if(b === "ws"){
     parts.push("Ahora se guarda en <b>el chat</b>. Al abrirla en Chrome pasa a guardarse en el teléfono.");
   } else {
-    parts.push("<b>Modo temporal:</b> se pierde al recargar. Abrila desde una dirección http o https.");
+    parts.push("<b>Modo temporal:</b> se pierde al recargar. Ábrela desde una dirección http o https.");
   }
 
   const lb = Number(cfg.lastBackup) || 0;
@@ -1079,10 +1085,12 @@ function renderStatus(){
 /* ── pestañas ── */
 function show(t){
   tab = t;
-  ["prod","ticket","cfg"].forEach(k=>{
+  ["prod","ticket","hist","cfg"].forEach(k=>{
     $("#view-"+k).hidden = k!==t;
-    $("#tab-"+k).setAttribute("aria-selected", String(k===t));
+    const b = $("#tab-"+k);          // Ajustes no tiene pestaña: se abre con ⚙
+    if(b) b.setAttribute("aria-selected", String(k===t));
   });
+  $("#cfgTg").setAttribute("aria-pressed", String(t==="cfg"));
   $("main").scrollTop = 0;
 }
 
@@ -1188,7 +1196,8 @@ async function load(){
   };
   $("#tab-prod").onclick   = ()=>show("prod");
   $("#tab-ticket").onclick = ()=>show("ticket");
-  $("#tab-cfg").onclick    = ()=>show("cfg");
+  $("#tab-hist").onclick   = ()=>show("hist");
+  $("#cfgTg").onclick      = ()=>show(tab === "cfg" ? "prod" : "cfg");
   $("#bPrint").onclick = doPrint;
   $("#bClear").onclick = ()=>{ cart=[]; sel=null; resetTip(); resetBol(); render(); };
   $("#bolNum").oninput = ()=>{ boleta = $("#bolNum").value.trim(); render(); };
@@ -1204,7 +1213,7 @@ async function load(){
   $("#chgAdd").onclick = ()=>{
     const txt = $("#chgTxt").value.trim();
     const amt = Number($("#chgAmt").value) || 0;
-    if(!txt){ toast("Escribí la descripción del cambio"); return; }
+    if(!txt){ toast("Escribe la descripción del cambio"); return; }
     const n = Math.max(0, ...cart.filter(c=>c.custom).map(c=>c.n||0)) + 1;
     cart.push({ id:"chg"+Date.now().toString(36), name:"Cambio "+n,
                 price: amt, qty:1, det: txt, custom:true, n });

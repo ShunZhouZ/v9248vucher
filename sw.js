@@ -1,5 +1,5 @@
 /* Voucher térmico — cache offline.
-   Subí la versión si cambiás index.html para forzar la actualización. */
+   Sube la versión si cambias index.html para forzar la actualización. */
 const V = "voucher-v1";
 const FILES = [
   "./",
