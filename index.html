@@ -1095,6 +1095,30 @@ function show(t){
 }
 
 /* ── imprimir ── */
+
+/* Limpieza diferida post-impresión.
+   En WebViews antiguos la página se captura DESPUÉS de que window.print()
+   retorna (al confirmar el diálogo): limpiar el papel de inmediato hacía que
+   el voucher llegara vacío a la impresora. La limpieza se difiere hasta
+   afterprint, la próxima interacción del usuario (con el diálogo abierto no
+   se puede tocar la página) o un timeout de seguridad — lo que ocurra primero.
+   Historial, folio y guardado NO se difieren. */
+let postPrint = null;
+function settlePrint(){
+  if(!postPrint) return;
+  const fn = postPrint; postPrint = null;
+  clearTimeout(settlePrint._t);
+  fn();
+}
+function deferAfterPrint(fn){
+  postPrint = fn;
+  clearTimeout(settlePrint._t);
+  settlePrint._t = setTimeout(settlePrint, 60000);
+}
+window.addEventListener("afterprint", settlePrint);
+["pointerdown","touchstart","mousedown","keydown"].forEach(ev=>
+  document.addEventListener(ev, settlePrint, true));
+
 function doPrint(){
   if(!cart.length) return;
   sel = null; show("ticket"); render();
@@ -1107,11 +1131,14 @@ function doPrint(){
     history.unshift(rec);
     history = history.slice(0,50);
     cfg.folio = Number(cfg.folio) + 1;
-    cart = [];
-    resetTip();
-    resetBol();
-    save(); render();
+    save();
     toast("Ticket " + folioStr(cfg.folio - 1) + " enviado");
+    deferAfterPrint(()=>{
+      cart = [];
+      resetTip();
+      resetBol();
+      render();
+    });
   }, 120);
 }
 
@@ -1130,10 +1157,12 @@ function reprintTicket(v){
   show("ticket"); render();
   setTimeout(()=>{
     window.print();
-    cart = saved.cart; tip = saved.tip; boleta = saved.boleta;
-    cfg.folio = saved.folio; cfg.svc = saved.svc; sel = saved.sel; printWhen = null;
-    render();
     toast("Reimpresión de " + folioStr(v.folio) + " enviada");
+    deferAfterPrint(()=>{
+      cart = saved.cart; tip = saved.tip; boleta = saved.boleta;
+      cfg.folio = saved.folio; cfg.svc = saved.svc; sel = saved.sel; printWhen = null;
+      render();
+    });
   }, 120);
 }
 
