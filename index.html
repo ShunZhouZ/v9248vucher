@@ -1097,12 +1097,14 @@ function show(t){
 /* ── imprimir ── */
 
 /* Limpieza diferida post-impresión.
-   En WebViews antiguos la página se captura DESPUÉS de que window.print()
-   retorna (al confirmar el diálogo): limpiar el papel de inmediato hacía que
-   el voucher llegara vacío a la impresora. La limpieza se difiere hasta
-   afterprint, la próxima interacción del usuario (con el diálogo abierto no
-   se puede tocar la página) o un timeout de seguridad — lo que ocurra primero.
-   Historial, folio y guardado NO se difieren. */
+   En Android/WebView, window.print() no bloquea y `afterprint` dispara con el
+   diálogo recién abierto — NO sirve de señal de término. En WebViews antiguos,
+   además, el sistema vuelve a pedir las páginas al confirmar (render perezoso):
+   si el papel ya se limpió, el voucher llega vacío a la impresora aunque la
+   preview se haya visto bien. Por eso la limpieza espera a la próxima
+   interacción del usuario (con el diálogo abierto no se puede tocar la página,
+   así que un toque garantiza que el trabajo ya se generó), con un timeout
+   largo solo de higiene. Historial, folio y guardado NO se difieren. */
 let postPrint = null;
 function settlePrint(){
   if(!postPrint) return;
@@ -1113,9 +1115,8 @@ function settlePrint(){
 function deferAfterPrint(fn){
   postPrint = fn;
   clearTimeout(settlePrint._t);
-  settlePrint._t = setTimeout(settlePrint, 60000);
+  settlePrint._t = setTimeout(settlePrint, 300000);
 }
-window.addEventListener("afterprint", settlePrint);
 ["pointerdown","touchstart","mousedown","keydown"].forEach(ev=>
   document.addEventListener(ev, settlePrint, true));
 
